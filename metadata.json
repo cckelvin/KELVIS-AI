@@ -1,0 +1,6 @@
+{
+  "name": "Kelvis AI",
+  "description": "A cheeky, smart, and witty AI Chat companion inspired by Grok. Features Fun Mode, Sarcastic Critic, real-time Google search grounding, and smart chat logs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
