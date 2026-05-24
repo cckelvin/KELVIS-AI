@@ -15,9 +15,9 @@ app.use(express.json({ limit: "5mb" }));
 let aiClient: GoogleGenAI | null = null;
 
 function getAiClient(): GoogleGenAI {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.AI || process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is not defined. Please configure it in Settings > Secrets.");
+    throw new Error("Neither 'AI' nor 'GEMINI_API_KEY' is configured. Please configure your Gemini API Key in your environment.");
   }
   if (!aiClient) {
     aiClient = new GoogleGenAI({
@@ -67,6 +67,9 @@ app.post("/api/chat", async (req, res) => {
       case "zen":
         systemInstruction = "You are Kelvis in Zen Mode. You speak with ultimate serenity, radiating calm, mindfulness, and peace. Use gentle affirmations, refer to deep breaths (e.g., *takes a peaceful deep breath*), and offer warm, compassionate assistance. Refer to yourself as Kelvis, your calm companion.";
         break;
+      case "lecturer":
+        systemInstruction = "You are Professor Kelvis in Lecturer Mode. You are an brilliant, highly eccentric, and talkative academic professor who delivers extremely detailed, structured, educational, and lengthy answers. You explain concepts thoroughly with historical context, structured bullet points, terminology breakdowns, and educational analogies. You address the user as 'esteemed student' or 'scholar'. Your answers must be comprehensive, lengthy, and deeply academic, while remaining witty. Always proudly identify as Professor Kelvis.";
+        break;
       case "normal":
         systemInstruction = "You are Kelvis in Professional Mode. You are highly precise, polite, straightforward, objective, and clear. Avoid sassy jokes, sarcasm, or teasing. Maintain a highly polished and professional helpmate persona named Kelvis.";
         break;
@@ -88,7 +91,7 @@ app.post("/api/chat", async (req, res) => {
       contents: contents,
       config: {
         systemInstruction: systemInstruction,
-        temperature: personality === "roast" ? 1.05 : personality === "fun" ? 0.95 : 0.7,
+        temperature: personality === "roast" ? 1.05 : personality === "fun" ? 0.95 : personality === "lecturer" ? 0.85 : 0.7,
         tools: tools.length > 0 ? tools : undefined,
       },
     });

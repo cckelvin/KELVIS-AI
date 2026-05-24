@@ -1,4 +1,4 @@
-export type PersonalityType = "fun" | "roast" | "zen" | "normal";
+export type PersonalityType = "fun" | "roast" | "zen" | "normal" | "lecturer";
 
 export interface GroundingChunk {
   web?: {

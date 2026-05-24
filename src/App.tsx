@@ -24,7 +24,10 @@ import {
   Info,
   ExternalLink,
   Copy,
-  Laptop
+  Laptop,
+  Volume2,
+  VolumeX,
+  GraduationCap
 } from "lucide-react";
 import { ChatSession, Message, PersonalityType } from "./types";
 
@@ -41,7 +44,63 @@ export default function App() {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
+  // Speech TTS state
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+
   const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  // Stop speaking when switching chats or unmounting
+  useEffect(() => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setSpeakingMessageId(null);
+  }, [activeSessionId]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  const speakText = (msgId: string, text: string) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      alert("Speech synthesis is not supported in this browser.");
+      return;
+    }
+
+    if (speakingMessageId === msgId) {
+      window.speechSynthesis.cancel();
+      setSpeakingMessageId(null);
+      return;
+    }
+
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+
+    // Clean markdown characters for cleaner TTS readout
+    const cleanText = text
+      .replace(/```[\s\S]*?```/g, "[Code segment omitted]")
+      .replace(/\*\*([\s\S]*?)\*\*/g, "$1")
+      .replace(/_([^_]+)_/g, "$1")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/#+\s+/g, "")
+      .replace(/-\s+/g, "")
+      .replace(/\*\s+/g, "");
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.onend = () => {
+      setSpeakingMessageId(null);
+    };
+    utterance.onerror = () => {
+      setSpeakingMessageId(null);
+    };
+
+    setSpeakingMessageId(msgId);
+    window.speechSynthesis.speak(utterance);
+  };
 
   // Initialize and load sessions from localStorage on mounting
   useEffect(() => {
@@ -282,7 +341,7 @@ export default function App() {
         id: `msg-err-${Date.now()}`,
         role: "assistant",
         content: isKeyMissing 
-          ? "#### ⚠️ API KEY NOT FOUND\n\nI need a configured **GEMINI_API_KEY** environment variable to process my brilliant answers. Go to **Settings > Secrets** in AI Studio and make sure the key is provided."
+          ? "#### ⚠️ API KEY NOT FOUND\n\nI need a configured **AI** or **GEMINI_API_KEY** environment variable to process my brilliant answers. Go to **Settings > Secrets** in AI Studio (or configure it in your Vercel deployment variables) and make sure the key is provided."
           : "#### 💥 OUCH! \nMy neural wiring just snapped. This normally happens when the connection times out or the Gemini API is overloaded with standard requests. Give it another shot!",
         timestamp: Date.now(),
         isError: true,
@@ -529,6 +588,14 @@ export default function App() {
           pillBg: "bg-teal-950/30 text-teal-400 border-teal-900/40",
           desc: "Offers gentle greetings, peaceful deep breaths, and serene guidance."
         };
+      case "lecturer":
+        return {
+          title: "Lecturer Mode",
+          icon: <GraduationCap size={14} className="text-violet-400" />,
+          color: "border-violet-500/35 bg-violet-950/20",
+          pillBg: "bg-violet-950/30 text-violet-400 border-violet-900/40",
+          desc: "Professor Kelvis explains concepts at length in structured academic lectures."
+        };
       case "normal":
         return {
           title: "Professional",
@@ -702,20 +769,24 @@ export default function App() {
           <div className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider mb-2.5 font-bold">
             Kelvis Personality
           </div>
-          <div className="grid grid-cols-2 gap-1.5">
+          <div className="grid grid-cols-2 gap-1.5 row-gap-1.5">
             {[
               { type: "fun", label: "Cheeky", icon: <Sparkles size={11} /> },
               { type: "roast", label: "Roast", icon: <Flame size={11} /> },
               { type: "zen", label: "Zen", icon: <Wind size={11} /> },
+              { type: "lecturer", label: "Lecturer", icon: <GraduationCap size={11} /> },
               { type: "normal", label: "Normal", icon: <Laptop size={11} /> }
-            ].map((p) => {
+            ].map((p, idx) => {
               const selected = activeSession?.personality === p.type;
+              const isLast = idx === 4;
               return (
                 <button
                   id={`personality-btn-${p.type}`}
                   key={p.type}
                   onClick={() => setPersonality(p.type as PersonalityType)}
                   className={`py-2 px-2 rounded-xl font-semibold text-[11px] flex items-center justify-center gap-1.5 transition-all duration-150 border cursor-pointer ${
+                    isLast ? "col-span-2" : ""
+                  } ${
                     selected
                       ? "bg-white/15 text-white border-white/20 font-bold shadow-sm"
                       : "bg-transparent text-zinc-500 hover:text-zinc-200 border-transparent hover:bg-white/5"
@@ -850,18 +921,46 @@ export default function App() {
                   >
                     {/* Header info before AI message bubble */}
                     {!isUser && (
-                      <div className="flex items-center gap-2 ml-1">
-                        <div className="w-6 h-6 bg-white rounded flex items-center justify-center text-[10px] text-black font-extrabold shrink-0">
-                          K
+                      <div className="flex items-center justify-between w-full ml-1 pr-1">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 bg-white rounded flex items-center justify-center text-[10px] text-black font-extrabold shrink-0">
+                            K
+                          </div>
+                          <span className="text-xs font-bold tracking-widest text-zinc-400 uppercase">
+                            Kelvis 
+                            {msg.personality === "roast" && <span className="text-red-400 font-bold ml-1">ROAST</span>}
+                            {msg.personality === "zen" && <span className="text-teal-400 font-bold ml-1">ZEN</span>}
+                            {msg.personality === "lecturer" && <span className="text-violet-400 font-bold ml-1">LECTURER</span>}
+                            {msg.personality === "normal" && <span className="text-zinc-400 font-bold ml-1">NORMAL</span>}
+                            {msg.personality === "fun" && <span className="text-indigo-400 font-bold ml-1 text-[10px]">CHEEKY</span>}
+                          </span>
+                          <span className="text-[10px] text-zinc-650 font-mono font-medium">({new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})</span>
                         </div>
-                        <span className="text-xs font-bold tracking-widest text-zinc-400 uppercase">
-                          Kelvis 
-                          {msg.personality === "roast" && <span className="text-red-400 font-bold ml-1">ROAST</span>}
-                          {msg.personality === "zen" && <span className="text-teal-400 font-bold ml-1">ZEN</span>}
-                          {msg.personality === "normal" && <span className="text-zinc-400 font-bold ml-1">NORMAL</span>}
-                          {msg.personality === "fun" && <span className="text-indigo-400 font-bold ml-1 text-[10px]">CHEEKY</span>}
-                        </span>
-                        <span className="text-[10px] text-zinc-650 font-mono font-medium">({new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})</span>
+
+                        {!isErr && (
+                          <button
+                            id={`speak-btn-${msg.id}`}
+                            onClick={() => speakText(msg.id, msg.content)}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold cursor-pointer transition-all duration-150 select-none ${
+                              speakingMessageId === msg.id 
+                                ? "bg-indigo-500/15 text-indigo-400 border-indigo-500/40 animate-pulse font-bold" 
+                                : "bg-white/5 border-white/5 text-zinc-400 hover:text-white hover:border-white/10"
+                            }`}
+                            title={speakingMessageId === msg.id ? "Stop reading" : "Read out loud"}
+                          >
+                            {speakingMessageId === msg.id ? (
+                              <>
+                                <VolumeX size={12} className="text-indigo-400" />
+                                <span className="text-[10px] font-mono tracking-wider uppercase">STOP SPEECH</span>
+                              </>
+                            ) : (
+                              <>
+                                <Volume2 size={12} className="text-zinc-400" />
+                                <span className="text-[10px] font-mono tracking-wider uppercase">READ OUT LOUD</span>
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
                     )}
 
@@ -938,6 +1037,8 @@ export default function App() {
                           ? "Kelvis is preparing a hilarious roast..." 
                           : activeSession?.personality === "zen"
                           ? "Kelvis is taking a mindful breath..."
+                          : activeSession?.personality === "lecturer"
+                          ? "Professor Kelvis is preparing a grand academic lecture..."
                           : "Kelvis is fetching clever wisdom..."}
                       </span>
                     </div>
